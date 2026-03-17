@@ -77,8 +77,12 @@ autoload_installed()  {
     done; return 1
 }
 key_loaded_in_agent() {
+    # Match by fingerprint (most reliable — agent lists by comment, not path)
+    local fp
+    fp="$(ssh-keygen -lf "${KEY_PATH}" 2>/dev/null | awk '{print $2}')"
     ssh-add -l 2>/dev/null | grep -qF "${KEY_PATH}" || \
-    ssh-add -l 2>/dev/null | grep -qF "$(basename "${KEY_PATH}")"
+    ssh-add -l 2>/dev/null | grep -qF "$(basename "${KEY_PATH}")" || \
+    { [[ -n "$fp" ]] && ssh-add -l 2>/dev/null | grep -qF "$fp"; }
 }
 has_cmd() { command -v "$1" &>/dev/null; }
 
