@@ -6,10 +6,31 @@ Operational guide for day-to-day use of `pq-ssh` on macOS.
 
 ## 1. First-time setup (new machine)
 
+### Option A — EPM install (recommended)
+
+```bash
+git clone https://github.com/token71/pq-ssh-github
+bash pq-ssh-github/install.sh --apply
+```
+
+This creates `~/.bin/pq-ssh` (wrapper to `setup_pq_ssh.sh`) and sources `ep-integration.sh`
+into your `~/.zshrc` / `~/.bashrc`, enabling the `ep ssh*` subcommands.
+
+Then finish key setup:
+```bash
+ep ssh-setup                          # generate key + write PQ KEX config block
+gh ssh-key add ~/.ssh/id_ed25519_pq.pub --title pq-$(hostname -s)
+ep ssh-store keychain                 # store passphrase in macOS Keychain (prompted once)
+ep ssh                                # verify status
+ep ssh-verify                         # test GitHub auth + confirm PQ KEX active
+```
+
+### Option B — manual
+
 ```bash
 # Clone the repo
-git clone https://github.com/akietler/pq_ssh_github_regen
-cd pq_ssh_github_regen
+git clone https://github.com/token71/pq-ssh-github
+cd pq-ssh-github
 
 # Generate Ed25519 key + write PQ KEX block to ~/.ssh/config
 bash setup_pq_ssh.sh --apply
@@ -35,9 +56,24 @@ Expected output:
 
 ---
 
-## 2. Daily use (existing machine)
+## 2. `ep` subcommands reference
 
-Nothing to do. The autoload snippet (written by `--install-autoload`) silently loads the key from Keychain on every new shell session.
+After EPM install, these are available in any shell:
+
+| Command | Equivalent | Description |
+|---------|-----------|-------------|
+| `ep ssh` | `--status` | Full status: key, agent, GitHub, KEX |
+| `ep ssh-load` | `--load` | Load key into ssh-agent (auto-detects passphrase manager) |
+| `ep ssh-unload` | `--unload` | Remove key from ssh-agent |
+| `ep ssh-verify` | `--verify` | Authenticate to GitHub and report KEX algorithm |
+| `ep ssh-setup` | `--apply` | Generate key + write PQ KEX config block |
+| `ep ssh-store <mgr>` | `--store-passphrase <mgr>` | Store passphrase (keychain/bitwarden/pass) |
+
+---
+
+## 3. Daily use (existing machine)
+
+Nothing to do. The autoload snippet (written by `--install-autoload` / `install.sh --apply`) silently loads the key from Keychain on every new shell session.
 
 Run `ep ssh` (or `bash setup_pq_ssh.sh --status`) at any time to check:
 - Key file present and permissions correct
@@ -47,7 +83,7 @@ Run `ep ssh` (or `bash setup_pq_ssh.sh --status`) at any time to check:
 
 ---
 
-## 3. Add passphrase to Bitwarden
+## 4. Add passphrase to Bitwarden
 
 **Prerequisites:** `brew install bitwarden-cli` and an active Bitwarden account.
 
@@ -64,7 +100,7 @@ On subsequent `--load` calls, the script checks `BW_SESSION` and retrieves the p
 
 ---
 
-## 4. Add passphrase to pass store
+## 5. Add passphrase to pass store
 
 **Prerequisites:** `brew install pass` and a GPG key for encryption.
 
@@ -80,7 +116,7 @@ The script writes to `ssh/pq-key-passphrase` by default (override with `PQ_PASS_
 
 ---
 
-## 5. NordPass / ProtonPass (manual)
+## 6. NordPass / ProtonPass (manual)
 
 Neither NordPass nor ProtonPass exposes a CLI, so automated storage is not possible.
 
@@ -98,7 +134,7 @@ ssh-add ~/.ssh/id_ed25519_pq   # enter passphrase from vault when prompted
 
 ---
 
-## 6. Rotate the SSH key
+## 7. Rotate the SSH key
 
 ```bash
 # 1. Unload + wipe existing key (overwrites bytes, removes from config)
@@ -121,7 +157,7 @@ bash setup_pq_ssh.sh --verify
 
 ---
 
-## 7. Transfer to new machine
+## 8. Transfer to new machine
 
 **Option A — copy private key securely (fastest):**
 
@@ -130,7 +166,7 @@ bash setup_pq_ssh.sh --verify
 scp ~/.ssh/id_ed25519_pq ~/.ssh/id_ed25519_pq.pub user@newmachine:~/.ssh/
 
 # On new machine: clone repo and re-apply (patches config, sets permissions)
-git clone https://github.com/akietler/pq_ssh_github_regen
+git clone https://github.com/token71/pq-ssh-github
 cd pq_ssh_github_regen
 bash setup_pq_ssh.sh --apply       # detects existing key, skips keygen
 
@@ -145,7 +181,7 @@ bash setup_pq_ssh.sh --verify
 
 ---
 
-## 8. Revoke access (offboarding)
+## 9. Revoke access (offboarding)
 
 ```bash
 # 1. Unload key, remove config block, overwrite + delete key files
@@ -160,7 +196,7 @@ The machine can no longer authenticate to GitHub via this key.
 
 ---
 
-## 9. Verify post-quantum KEX is active
+## 10. Verify post-quantum KEX is active
 
 ```bash
 bash setup_pq_ssh.sh --verify
@@ -187,7 +223,7 @@ ssh -vT git@github.com 2>&1 | grep "kex: algorithm"
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 **Key not loaded in agent after shell restart**
 - Run `bash setup_pq_ssh.sh --status` — check autoload line is present in `~/.zshrc` / `~/.bashrc`
