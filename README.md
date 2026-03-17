@@ -1,177 +1,119 @@
-# Post-Quantum SSH (Hybrid KEX) — macOS + GitHub
+# pq-ssh — Post-Quantum SSH for GitHub
 
-Enable hybrid post-quantum SSH key exchange for GitHub on macOS.
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
+![Shell: bash](https://img.shields.io/badge/shell-bash-green.svg)
 
-- **Authentication**: Ed25519 (unchanged)
-- **Key exchange**: PQ hybrid — `mlkem768x25519-sha256` → `sntrup761x25519-sha512` → `curve25519-sha256` (fallback)
+Hybrid post-quantum SSH key exchange for GitHub on macOS — Ed25519 auth + `mlkem768x25519` KEX, passphrase managers, shell autoload, and EPM integration.
 
 ---
 
-## Quick Start
+## Install (EPM)
 
 ```bash
-# 1. Generate key + patch ~/.ssh/config
+bash install.sh --apply      # installs pq-ssh to ~/.bin + ep ssh* subcommands
+```
+
+Or clone and run manually:
+
+```bash
+git clone https://github.com/akietler/pq_ssh_github_regen
+cd pq_ssh_github_regen
+bash setup_pq_ssh.sh --apply
+```
+
+---
+
+## Quick Start (4 commands)
+
+```bash
+# 1. Generate Ed25519 key + patch ~/.ssh/config with PQ KEX block
 bash setup_pq_ssh.sh --apply
 
 # 2. Upload public key to GitHub
 gh ssh-key add ~/.ssh/id_ed25519_pq.pub --title pq-$(hostname -s)
 
-# 3. Store passphrase in macOS Keychain (asked once, never again)
+# 3. Store passphrase in macOS Keychain (asked once, silent forever after)
 bash setup_pq_ssh.sh --store-passphrase keychain
 
 # 4. Auto-load key on every new shell session
 bash setup_pq_ssh.sh --install-autoload
 
-# 5. Verify connectivity + PQ KEX active
+# Verify connectivity + confirm PQ KEX is negotiated
 bash setup_pq_ssh.sh --verify
 ```
 
 ---
 
-## All Commands
+## ep Command Integration
+
+After `install.sh --apply`, the following `ep` subcommands are available:
 
 | Command | Description |
 |---------|-------------|
-| `setup_pq_ssh.sh` | Dry-run: full status report, no changes |
+| `ep ssh` | Show current key / agent / config / GitHub status |
+| `ep ssh-load` | Load key into ssh-agent (auto-detects passphrase manager) |
+| `ep ssh-unload` | Remove key from ssh-agent |
+| `ep ssh-verify` | Test GitHub auth + confirm PQ KEX algorithm negotiated |
+| `ep ssh-setup` | Run full first-time setup interactively |
+| `ep ssh-store keychain` | Store passphrase in macOS Keychain |
+
+---
+
+## All pq-ssh Commands
+
+| Flag | Description |
+|------|-------------|
+| *(no flag)* | Dry-run: full status report, no changes made |
 | `--apply` | Generate key (if missing) + write `~/.ssh/config` PQ KEX block |
 | `--load [--manager <mgr>]` | Load key into ssh-agent (auto-detects passphrase manager) |
 | `--unload` | Remove key from ssh-agent |
 | `--verify` | Test GitHub auth + confirm PQ KEX algorithm negotiated |
-| `--status` | Full health report: key / permissions / agent / config / managers / GitHub |
-| `--store-passphrase <mgr>` | Store passphrase in a manager (see below) |
+| `--status` | Full health report: key / perms / agent / config / managers / GitHub |
+| `--store-passphrase <mgr>` | Store passphrase in a manager (see table below) |
 | `--install-autoload` | Inject autoload snippet into `~/.zshrc`, `~/.bashrc`, etc. |
 | `--clean` | Remove PQ KEX block from `~/.ssh/config` |
-| `--delete` | Unload + clean config + overwrite + delete key files |
+| `--delete` | Unload + clean config + overwrite bytes + delete key files |
 | `--help` | Full usage |
 
 ---
 
 ## Passphrase Managers
 
-| Manager | `--store-passphrase` | `--load` auto-detect | Notes |
-|---------|---------------------|----------------------|-------|
-| **macOS Keychain** | `keychain` | ✅ automatic | Best option on macOS — no prompt after first time |
-| **Bitwarden** | `bitwarden` | ✅ if `BW_SESSION` set | `brew install bitwarden-cli` |
-| **pass** | `pass` | ✅ automatic | `brew install pass` |
-| **NordPass** | `nordpass` | ❌ no CLI | Manual steps printed |
-| **ProtonPass** | `protonpass` | ❌ no CLI | Manual steps printed |
+| Manager | `--store-passphrase` value | `--load` auto-detect | Notes |
+|---------|---------------------------|----------------------|-------|
+| **macOS Keychain** | `keychain` | ✅ automatic | Best option on macOS — no prompt after first store |
+| **Bitwarden** | `bitwarden` | ✅ if `BW_SESSION` set | `brew install bitwarden-cli` required |
+| **pass** | `pass` | ✅ automatic | `brew install pass` required |
+| **NordPass** | `nordpass` | ❌ no CLI | Manual copy-paste steps printed |
+| **ProtonPass** | `protonpass` | ❌ no CLI | Manual copy-paste steps printed |
 
-**Passphrase auto-detection order** (for `--load`):
-1. macOS Keychain
-2. Bitwarden (if `BW_SESSION` set)
-3. pass store
-4. Interactive prompt (fallback)
-
----
-
-## Autoload (Shell Integration)
-
-`--install-autoload` writes a fenced snippet to all detected rc files (`~/.zshrc`, `~/.bashrc`, `~/.bash_profile`, `~/.profile`):
-
-```bash
-# BEGIN pq-ssh autoload
-_pq_ssh_autoload() {
-  [[ -f ~/.ssh/id_ed25519_pq ]] || return 0
-  ssh-add -l 2>/dev/null | grep -qF id_ed25519_pq && return 0
-  ssh-add --apple-use-keychain ~/.ssh/id_ed25519_pq 2>/dev/null || true
-}
-_pq_ssh_autoload; unset -f _pq_ssh_autoload
-# END pq-ssh autoload
-```
-
-If Keychain has the passphrase, this runs silently. No prompt, ever.
+**Auto-detection order** (for `--load`): Keychain → Bitwarden → pass → interactive prompt
 
 ---
 
 ## Key Safety
 
-- Private key stored with permissions `600` — script enforces and auto-fixes this
-- `--delete` overwrites key bytes with random data before removal (shred-like)
-- Key is scoped to `github.com` only (`IdentitiesOnly yes`)
-- PQ KEX means session traffic is protected against "harvest now, decrypt later" attacks
+- Private key stored with permissions `600` — script enforces and auto-fixes on every run
+- `--delete` overwrites key bytes with random data before `rm` (shred-like behaviour)
+- `.gitignore` blocks `id_ed25519_pq` (private key) from accidental commits
+- Key is scoped to `github.com` only via `IdentitiesOnly yes` in `~/.ssh/config`
+- PQ KEX protects session traffic against "harvest now, decrypt later" attacks
 
 ---
 
-## Environment Overrides
+## EPM Integration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PQ_KEY_PATH` | `~/.ssh/id_ed25519_pq` | Key file path |
-| `PQ_KEX_ALGOS` | `mlkem768x25519-sha256,...` | KEX algorithm preference list |
-| `PQ_BW_ITEM` | `pq-ssh-passphrase` | Bitwarden item name |
-| `PQ_PASS_ENTRY` | `ssh/pq-key-passphrase` | pass store entry path |
+This tool follows the EPM `toolkit_framework 1.0.0` convention:
 
----
-
-## Expected `--verify` Output
-
-```
-  ✓  Authenticated as: token71
-  ✓  KEX algorithm: mlkem768x25519-sha256 ✨ post-quantum active
-```
-
-
-Enable hybrid post-quantum SSH key exchange for GitHub on macOS using stock OpenSSH.
-
-- **Authentication**: Ed25519 (unchanged)
-- **Key exchange**: PQ hybrid — `mlkem768x25519-sha256` → `sntrup761x25519-sha512` → `curve25519-sha256` (fallback)
+| File | Purpose |
+|------|---------|
+| `meta/pq-ssh.json` | EPM manifest (name, version, commands, install targets) |
+| `install.sh` | EPM-compatible installer — copies to `~/.bin`, registers `ep` subcommands |
+| `lib/ep-integration.sh` | Sourced by EPM to register `ep ssh*` subcommand handlers |
 
 ---
 
-## Quick Start
+## License
 
-```bash
-# 1. Generate key + patch ~/.ssh/config
-bash setup_pq_ssh.sh --apply
-
-# 2. Upload public key to GitHub
-gh ssh-key add ~/.ssh/id_ed25519_pq.pub --title pq-$(hostname -s)
-
-# 3. Load key into agent (macOS Keychain — asked once, remembered)
-bash setup_pq_ssh.sh --load
-
-# 4. Verify connectivity + PQ KEX active
-bash setup_pq_ssh.sh --verify
-```
-
----
-
-## All Commands
-
-| Command | Description |
-|---------|-------------|
-| `setup_pq_ssh.sh` | Dry-run: show current status, no changes |
-| `setup_pq_ssh.sh --apply` | Generate key (if missing) + write `~/.ssh/config` block |
-| `setup_pq_ssh.sh --load` | `ssh-add` key into agent (macOS Keychain aware — passphrase stored) |
-| `setup_pq_ssh.sh --verify` | Test GitHub connectivity + confirm PQ KEX algorithm negotiated |
-| `setup_pq_ssh.sh --status` | Show key / agent / config / GitHub status |
-| `setup_pq_ssh.sh --help` | Full usage |
-
----
-
-## Environment Overrides
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PQ_KEY_PATH` | `~/.ssh/id_ed25519_pq` | Key file path |
-| `PQ_KEX_ALGOS` | `mlkem768x25519-sha256,...` | KEX algorithm preference list |
-
----
-
-## How It Works
-
-- **`--apply`** writes a fenced block (`# BEGIN pq-ssh github.com` … `# END pq-ssh github.com`) into `~/.ssh/config`. Idempotent — won't duplicate.
-- **`--load`** calls `ssh-add --apple-use-keychain` on macOS so the passphrase is stored in the macOS Keychain. Subsequent sessions load silently.
-- **`--verify`** runs a live `ssh -T git@github.com` (BatchMode) and then a verbose handshake to confirm the negotiated KEX algorithm.
-
----
-
-## Expected `--verify` Output
-
-```
-  ✓  Authenticated as: token71
-  ✓  KEX algorithm: mlkem768x25519-sha256 ✨ post-quantum active
-```
-
-If you see `curve25519-sha256`: the remote side doesn't support PQ KEX (classical fallback — still secure, just not post-quantum).
-
+MIT — see [LICENSE](LICENSE)

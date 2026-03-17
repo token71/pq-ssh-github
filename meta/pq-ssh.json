@@ -1,0 +1,22 @@
+{
+  "name": "pq-ssh",
+  "version": "2.0.0",
+  "description": "Post-quantum hybrid SSH key lifecycle for GitHub — setup, load, Keychain/Bitwarden/pass, autoload, verify, delete",
+  "toolkit_framework": "1.0.0",
+  "target": "platform",
+  "install_prefix": "~/.bin",
+  "source": "~/git/pq_ssh_github_regen/setup_pq_ssh.sh",
+  "scripts": { "pq-ssh": "setup_pq_ssh.sh" },
+  "aliases": ["pq-ssh"],
+  "ep_subcommands": {
+    "ssh": "status",
+    "ssh-load": "load",
+    "ssh-unload": "unload",
+    "ssh-verify": "verify",
+    "ssh-setup": "apply"
+  },
+  "passphrase_managers": ["keychain", "bitwarden", "pass"],
+  "shell_integration": "lib/ep-integration.sh",
+  "requires": { "tools": ["ssh", "ssh-add", "ssh-keygen"] },
+  "created": "2026-03-17"
+}
