@@ -14,6 +14,7 @@ BIN_DIR="${HOME}/.bin"
 BIN_TARGET="${BIN_DIR}/pq-ssh"
 EP_SNIPPET_MARKER="# pq-ssh ep-integration"
 EP_INTEGRATION_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/ep-integration.sh"
+RC_OVERRIDE=""
 
 # ---------------------------------------------------------------------------
 # Colour helpers
@@ -27,18 +28,22 @@ _dry()  { printf '\033[0;35m  dry\033[0m  %s\n' "$*"; }
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-for arg in "$@"; do
-  case "$arg" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --apply)     APPLY=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --rc)        shift; RC_OVERRIDE="$1" ;;
+    --rc=*)      RC_OVERRIDE="${1#--rc=}" ;;
     --help|-h)
-      echo "Usage: install.sh [--apply] [--uninstall]"
+      echo "Usage: install.sh [--apply] [--uninstall] [--rc FILE]"
       echo "  --apply      Execute changes (default is dry-run)"
       echo "  --uninstall  Remove pq-ssh from ~/.bin and rc files"
+      echo "  --rc FILE    Target a specific rc file (e.g. --rc ~/.bashrc)"
       exit 0
       ;;
-    *) _fail "Unknown argument: $arg"; exit 1 ;;
+    *) _fail "Unknown argument: $1"; exit 1 ;;
   esac
+  shift
 done
 
 [[ $APPLY -eq 0 ]] && _info "Dry-run mode — pass --apply to execute changes"
@@ -57,8 +62,12 @@ _do() {
 
 _rc_files() {
   local files=()
-  [[ -f "${HOME}/.zshrc" ]]  && files+=("${HOME}/.zshrc")
-  [[ -f "${HOME}/.bashrc" ]] && files+=("${HOME}/.bashrc")
+  if [[ -n "$RC_OVERRIDE" ]]; then
+    files+=("$RC_OVERRIDE")
+  else
+    [[ -f "${HOME}/.zshrc" ]]  && files+=("${HOME}/.zshrc")
+    [[ -f "${HOME}/.bashrc" ]] && files+=("${HOME}/.bashrc")
+  fi
   echo "${files[@]:-}"
 }
 
@@ -207,5 +216,5 @@ if [[ $APPLY -eq 0 ]]; then
   _info "Dry-run complete — re-run with --apply to make changes"
 else
   _ok "Installation complete"
-  _info "Reload your shell or run: source ~/.zshrc"
+  _info "Reload your shell or run: source ${RC_OVERRIDE:-~/.bashrc}"
 fi

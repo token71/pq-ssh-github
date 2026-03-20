@@ -3,9 +3,7 @@
 # ep-integration.sh — pq-ssh subcommands for the ep CLI
 # Source this file (via install.sh) to add ep ssh* subcommands
 # BEGIN pq-ssh ep-integration
-
-set -euo pipefail
-IFS=$'\n\t'
+# NOTE: do NOT set -e here — this file is sourced into interactive shells
 
 # Wrap ep to intercept ssh subcommands
 _pq_ssh_ep_wrap() {
